@@ -1,6 +1,6 @@
 ## Prerequisites
 ```
-udo apt update
+sudo apt update
 sudo apt upgrade
 sudo apt -y install python-pip
 sudo apt -y install python-dev
@@ -32,3 +32,4 @@ cd nfc-zaishitsu
 sudo python monitor-nfc-gas.py
 ```
 
+## Usage(GAS)
