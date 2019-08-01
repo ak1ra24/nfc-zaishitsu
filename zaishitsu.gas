@@ -1,0 +1,132 @@
+// slack settings
+var postUrl = "slack incoming webhook";
+var username = "slack bot name";
+var SLACK_TOKEN = "slack token";
+var OUTGOING_TOKEN = "outgoing token";
+
+function sendSlack(name, color, title, idm) {
+  var attachments = [{
+            "color": color,
+            "title": title,
+            "fields": [
+              {
+                "title": "name",
+                "value": name,
+              },
+              {
+                "title": "idm",
+                "value": idm,
+              }
+            ]
+  }]
+  
+  var jsonData =
+  {
+     "username" : username,
+     "attachments" : attachments
+  };
+  
+  var payload = JSON.stringify(jsonData);
+
+  var options =
+  {
+    "method" : "post",
+    "contentType" : "application/json",
+    "payload" : payload
+  };
+
+  UrlFetchApp.fetch(postUrl, options);
+}
+
+
+function nfc_process(e, sheet) {
+  var params = JSON.parse(e.postData.getDataAsString());
+  var idm = params.idm;
+  // idmの値があるかどうかの確認の処理
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1).getValues();
+  data = data.toString();
+  var dataArray = data.split(",");
+  var exist = dataArray.indexOf(idm);
+  var name = "Unknown"
+  if(exist == -1) {
+    // idmの値がないとき
+    sheet.appendRow([idm, name, 1]);
+    var color = "#7cfc00";
+    var title = Utilities.formatString("鍵が登録された！", name);
+    sendSlack(name, color, title, idm);
+  } else {
+    // idmの値があるとき
+    var row = exist + 2;
+    var match_status_range = sheet.getRange(row, 3);
+    var match_name_range = sheet.getRange(row, 2);
+    var match_status = match_status_range.getValues().toString();
+    var match_name = match_name_range.getValues().toString();
+    match_status = parseInt(match_status, 10);
+    if(match_status == 1) {
+      var now_range = sheet.getRange(row, 4);
+      var sum_range = sheet.getRange(row, 5);
+      match_status_range.setValue(0);
+      var color = "#ff0000";
+      var title = Utilities.formatString("%s: 返された!", match_name);
+      sendSlack(match_name, color, title, idm);
+    } else if(match_status == 0) {
+      var now_range = sheet.getRange(row, 4);
+      var sum_range = sheet.getRange(row, 5);
+      var range_sum_time = sum_range.getValue();
+      now_range.setValue(new Date());
+      match_status_range.setValue(1);
+      var color = "#0000FF";
+      var title = Utilities.formatString("%s: 入室が確認された!", match_name);
+      sendSlack(match_name, color, title, idm);
+    }
+  }
+}
+
+function register(sheet, name, idm) {
+  // idmの値があるかどうかの確認の処理
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1).getValues();
+  data = data.toString();
+  var dataArray = data.split(",");
+  var exist = dataArray.indexOf(idm);
+  
+  // check idm exist
+  if(exist != -1) {
+    var row = exist + 2;
+    var match_name_range = sheet.getRange(row, 2);
+    var match_name = match_name_range.getValues().toString();
+    if(match_name == "Unknown") {
+      match_name_range.setValue(name);
+      return 0;
+    }
+  }
+  
+  return -1;
+}
+
+function doPost(e) {
+  var ss       = SpreadsheetApp.openById('spredsheet id');
+  var sheet    = ss.getSheetByName('シート1');
+  
+  if (OUTGOING_TOKEN != e.parameter.token) {
+    nfc_process(e, sheet);
+  } else {
+    var request_param = e.parameter.text.split(" ");
+    var req = request_param.join(',')
+    req = req.split(',');
+    var type = typeof req
+    
+    var register_name = req[1];
+    var register_idm = req[2];
+    var result = register(sheet, register_name, register_idm);
+    
+    if(result == 0) {
+      var message = e.parameter.user_name + "さん、登録しました！";
+    } else {
+      var message = e.parameter.user_name + "さん、登録失敗wwwwwwwww"
+    }
+    var slackApp = SlackApp.create(SLACK_TOKEN); 
+    slackApp.chatPostMessage(e.parameter.channel_id, message, {
+      username : "fukakyon"
+    });
+  }
+}
